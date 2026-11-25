@@ -1,6 +1,6 @@
 # PyFlow
 
-PyFlow to biblioteka w języku Python służąca do definiowania, walidacji i uruchamiania przepływów danych przy pomocy skierowanych grafów acyklicznych (DAG).
+PyFlow to biblioteka w języku Python służąca do definiowania, walidacji i uruchamiania przepływów danych (synchronicznie oraz asynchronicznie) przy pomocy skierowanych grafów acyklicznych (DAG).
 
 ## Instalacja
 

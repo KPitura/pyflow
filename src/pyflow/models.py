@@ -1,26 +1,31 @@
-import copy
 from dataclasses import dataclass, field
-from typing import Callable, Any, Mapping
+from typing import Any, Callable, Mapping, Optional
+
 
 class WorkflowValidationError(Exception):
     pass
 
-@dataclass
+
+@dataclass(frozen=True)
 class Task:
     name: str
     function: Callable[[Mapping[str, Any], Mapping[str, Any]], Any]
     dependencies: frozenset[str] = field(default_factory=frozenset)
     params: Mapping[str, Any] = field(default_factory=dict)
-    description: str | None = None
+    description: Optional[str] = None
+    retries: int = 0
+    timeout: Optional[float] = None
 
     def __post_init__(self):
-        if not self.name:
+        if not self.name or not self.name.strip():
             raise ValueError("Nazwa zadania nie może być pusta.")
         if self.name in self.dependencies:
-            raise ValueError(f"Zadanie '{self.name}' nie może zależeć od samego siebie.")
-        
-        self.dependencies = frozenset(self.dependencies)
-        self.params = copy.deepcopy(dict(self.params))
+            raise ValueError(f"Zadanie '{self.name}' nie może zależeć samo od siebie.")
+        if self.retries < 0:
+            raise ValueError("Liczba ponowień (retries) nie może być ujemna.")
+        if self.timeout is not None and self.timeout <= 0:
+            raise ValueError("Limit czasu (timeout) musi być dodatni.")
+
 
 class Workflow:
     def __init__(self):
@@ -28,17 +33,20 @@ class Workflow:
 
     def add_task(self, task: Task) -> None:
         if task.name in self.tasks:
-            raise ValueError(f"Zadanie '{task.name}' zostało już dodane.")
+            raise ValueError(f"Zadanie o nazwie '{task.name}' już istnieje w workflow.")
         self.tasks[task.name] = task
 
     def validate(self) -> None:
-        # 1. Sprawdzenie, czy zadania nie odwołują się do nieistniejących zależności
         for task in self.tasks.values():
             for dep in task.dependencies:
                 if dep not in self.tasks:
                     raise WorkflowValidationError(
-                        f"Brakująca zależność: '{dep}' dla zadania '{task.name}'"
+                        f"Zadanie '{task.name}' ma niezarejestrowaną zależność: '{dep}'"
                     )
-        
-        from .graph import topological_order
-        topological_order(self)
+
+        from pyflow.graph import topological_order
+
+        try:
+            topological_order(self)
+        except ValueError as e:
+            raise WorkflowValidationError(f"Walidacja DAG nie powiodła się: {e}")
